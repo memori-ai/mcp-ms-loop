@@ -1,0 +1,23 @@
+{
+  "name": "mcp-ms-loop",
+  "version": "1.0.0",
+  "description": "MCP server for Microsoft Loop files: retrieve Loop content as HTML via Microsoft Graph API.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "mcp-ms-loop": "./src/index.js"
+  },
+  "files": [
+    "src/"
+  ],
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "axios": "1.13.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
