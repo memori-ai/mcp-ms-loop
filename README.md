@@ -1,118 +1,118 @@
-# mcp-ms-loop — Guida completa per system integrator
+# mcp-ms-loop — Complete guide
 
-Server MCP che permette agli Agenti AI di leggere i file **Microsoft Loop** via Microsoft Graph API, con autenticazione **app-only** (client credentials). Funziona per file Loop ovunque siano salvati:
+MCP server that allows AI Agents to read **Microsoft Loop** files via Microsoft Graph API, using **app-only authentication** (client credentials). Works for Loop files stored anywhere:
 
-- OneDrive personale
-- Siti SharePoint (canali Teams)
-- **App Microsoft Loop** (SharePoint Embedded, container `CSP_…`)
+- Personal OneDrive
+- SharePoint sites (Teams channels)
+- **Microsoft Loop app** (SharePoint Embedded, `CSP_…` containers)
 
 ---
 
-## Indice
+## Table of Contents
 
-1. [Panoramica architetturale](#1-panoramica-architetturale)
-2. [Prerequisiti](#2-prerequisiti)
-3. [Creare l'App Registration su Azure](#3-creare-lapp-registration-su-azure)
-4. [Assegnare i permessi API](#4-assegnare-i-permessi-api)
-5. [Registrazione SPE — passaggio obbligatorio per l'app Loop](#5-registrazione-spe--passaggio-obbligatorio-per-lapp-loop)
-6. [Configurare l'MCP nel gateway](#6-configurare-lmcp-nel-gateway)
-7. [Tool disponibili](#7-tool-disponibili)
-8. [Permessi minimi necessari](#8-permessi-minimi-necessari)
+1. [Architecture Overview](#1-architecture-overview)
+2. [Prerequisites](#2-prerequisites)
+3. [Create the App Registration on Azure](#3-create-the-app-registration-on-azure)
+4. [Assign API Permissions](#4-assign-api-permissions)
+5. [SPE Registration — required for the Loop app](#5-spe-registration--required-for-the-loop-app)
+6. [Configure the MCP in the gateway](#6-configure-the-mcp-in-the-gateway)
+7. [Available Tools](#7-available-tools)
+8. [Minimum Required Permissions](#8-minimum-required-permissions)
 9. [Troubleshooting](#9-troubleshooting)
 
 ---
 
-## 1. Panoramica architetturale
+## 1. Architecture Overview
 
 ```
-Agente AI
+AI Agent
    │
    ▼
 MCP Gateway (Rails)
-   │  inietta TENANT_ID, CLIENT_ID, CLIENT_SECRET
-   │  come variabili d'ambiente
+   │  injects TENANT_ID, CLIENT_ID, CLIENT_SECRET
+   │  as environment variables
    ▼
-npx mcp-ms-loop   ← questo pacchetto
+npx mcp-ms-loop   ← this package
    │
    ▼
 Microsoft Graph API
    │
    ├── /drives/{driveId}/items/{itemId}/content?format=html
-   │     ↓ redirect a westeurope1-mediap.svc.ms (converter HTML)
+   │     ↓ redirect to westeurope1-mediap.svc.ms (HTML converter)
    │
-   └── /v1.0/search/query  (per discovery dei workspace)
+   └── /v1.0/search/query  (for workspace discovery)
 ```
 
-Le credenziali **non passano mai dall'LLM**: vengono iniettate dal gateway come variabili d'ambiente, invisibili all'Agente.
+Credentials **never pass through the LLM**: they are injected by the gateway as environment variables, invisible to the Agent.
 
 ---
 
-## 2. Prerequisiti
+## 2. Prerequisites
 
-| Requisito | Dettaglio |
+| Requirement | Details |
 |---|---|
-| Accesso Azure Portal | Ruolo **Application Administrator** o superiore sul tenant |
-| Accesso Global Admin | Necessario solo per il passaggio PowerShell (§5), una volta sola |
-| PowerShell con `pwsh` | Per il passaggio SPE. Funziona su Windows (nativo) e Linux/macOS via GitHub Codespaces o Azure Cloud Shell |
-| Tenant Microsoft 365 | Con licenza che include Microsoft Loop (M365 Business Standard/Premium, E3/E5) |
+| Azure Portal access | **Application Administrator** role or higher on the tenant |
+| Global Admin access | Required only for the PowerShell step (§5), one time only |
+| PowerShell (`pwsh`) | For the SPE step. Works on Windows (native) and Linux/macOS via GitHub Codespaces or Azure Cloud Shell |
+| Microsoft 365 tenant | With a license that includes Microsoft Loop (M365 Business Standard/Premium, E3/E5) |
 
 ---
 
-## 3. Creare l'App Registration su Azure
+## 3. Create the App Registration on Azure
 
-1. Vai su **[portal.azure.com](https://portal.azure.com)** → **Microsoft Entra ID** → **App registrations** → **New registration**
-2. Impostazioni:
-   - **Name**: es. `MCP MS Loop`
+1. Go to **[portal.azure.com](https://portal.azure.com)** → **Microsoft Entra ID** → **App registrations** → **New registration**
+2. Settings:
+   - **Name**: e.g. `MCP MS Loop`
    - **Supported account types**: `Accounts in this organizational directory only`
-   - **Redirect URI**: lascia vuoto (non serve per app-only)
-3. Clicca **Register**
-4. Dalla pagina dell'app, annota:
+   - **Redirect URI**: leave empty (not needed for app-only)
+3. Click **Register**
+4. From the app page, note:
    - **Application (client) ID** → `CLIENT_ID`
    - **Directory (tenant) ID** → `TENANT_ID`
-5. Vai su **Certificates & secrets** → **New client secret**
-   - Description: es. `mcp-loop-secret`
-   - Expires: scegli la scadenza appropriata (es. 24 mesi)
-   - Clicca **Add** e copia subito il **Value** → `CLIENT_SECRET`
+5. Go to **Certificates & secrets** → **New client secret**
+   - Description: e.g. `mcp-loop-secret`
+   - Expires: choose an appropriate expiration (e.g. 24 months)
+   - Click **Add** and immediately copy the **Value** → `CLIENT_SECRET`
 
-> ⚠️ Il `CLIENT_SECRET` è visibile solo al momento della creazione. Copialo subito.
-
----
-
-## 4. Assegnare i permessi API
-
-Dalla pagina dell'app → **API permissions** → **Add a permission**:
-
-### Permessi richiesti (minimi)
-
-| API | Tipo | Permesso | Admin consent |
-|---|---|---|---|
-| Microsoft Graph | Application | `Files.Read.All` | Sì |
-| Microsoft Graph | Application | `FileStorageContainer.Selected` | Sì |
-
-### Permesso temporaneo (solo per §5, poi rimuovibile)
-
-| API | Tipo | Permesso | Admin consent |
-|---|---|---|---|
-| SharePoint | Application | `Sites.FullControl.All` | Sì |
-
-Dopo aver aggiunto tutti i permessi:
-- Clicca **Grant admin consent for \<tenant\>**
-- Verifica che tutti mostrino lo stato ✅ **Granted**
-
-> ℹ️ `Sites.FullControl.All` serve solo per eseguire `Connect-SPOService` in PowerShell (§5). Una volta completato quel passaggio, può essere **rimosso**.
+> ⚠️ The `CLIENT_SECRET` is only visible at creation time. Copy it immediately.
 
 ---
 
-## 5. Registrazione SPE — passaggio obbligatorio per l'app Loop
+## 4. Assign API Permissions
 
-I file creati nell'**app Microsoft Loop** vivono in container **SharePoint Embedded (SPE)**. Questi container hanno un modello di autorizzazione separato: non basta avere permessi Graph, bisogna registrare l'app come "guest application" sul container type di Loop tramite PowerShell.
+From the app page → **API permissions** → **Add a permission**:
 
-Questo passaggio:
-- Si esegue **una sola volta** per tenant
-- Richiede un account **Global Admin**
-- Non è sostituibile via Graph API o interfaccia Azure
+### Required permissions (minimum)
 
-### ID del container type di Loop (costante per tutti i tenant)
+| API | Type | Permission | Admin consent |
+|---|---|---|---|
+| Microsoft Graph | Application | `Files.Read.All` | Yes |
+| Microsoft Graph | Application | `FileStorageContainer.Selected` | Yes |
+
+### Temporary permission (only for §5, removable afterwards)
+
+| API | Type | Permission | Admin consent |
+|---|---|---|---|
+| SharePoint | Application | `Sites.FullControl.All` | Yes |
+
+After adding all permissions:
+- Click **Grant admin consent for \<tenant\>**
+- Verify all show status ✅ **Granted**
+
+> ℹ️ `Sites.FullControl.All` is only needed to run `Connect-SPOService` in PowerShell (§5). Once that step is complete, it can be **removed**.
+
+---
+
+## 5. SPE Registration — required for the Loop app
+
+Files created in the **Microsoft Loop app** live in **SharePoint Embedded (SPE)** containers. These containers have a separate authorization model: Graph permissions alone are not enough — you must register the app as a "guest application" on the Loop container type via PowerShell.
+
+This step:
+- Is performed **once per tenant**
+- Requires a **Global Admin** account
+- Cannot be replaced by Graph API or the Azure interface
+
+### Loop container type ID (constant across all tenants)
 
 ```
 a187e399-0c36-4b98-8f04-1edc167a0996
@@ -120,65 +120,65 @@ a187e399-0c36-4b98-8f04-1edc167a0996
 
 ---
 
-### Opzione A — Windows (più semplice)
+### Option A — Windows (simplest)
 
-Apri PowerShell come amministratore:
+Open PowerShell as administrator:
 
 ```powershell
-# Installa il modulo SPO
+# Install the SPO module
 Install-Module Microsoft.Online.SharePoint.PowerShell -Force
 Import-Module Microsoft.Online.SharePoint.PowerShell
 
-# Connetti con login interattivo (apre il browser)
+# Connect with interactive login (opens browser)
 Connect-SPOService -Url "https://<TENANT_NAME>-admin.sharepoint.com" -Interactive
 
-# Registra l'app come guest sul container type di Loop
+# Register the app as guest on the Loop container type
 Set-SPOApplicationPermission `
   -OwningApplicationId "a187e399-0c36-4b98-8f04-1edc167a0996" `
   -GuestApplicationId  "<CLIENT_ID>" `
   -PermissionAppOnly   "readcontent"
 ```
 
-Sostituisci:
-- `<TENANT_NAME>` con il prefisso del tuo tenant (es. `contoso`)
-- `<CLIENT_ID>` con l'Application ID dell'app creata al §3
+Replace:
+- `<TENANT_NAME>` with your tenant prefix (e.g. `contoso`)
+- `<CLIENT_ID>` with the Application ID created in §3
 
-Se il comando non dà output → ha funzionato. L'assenza di output è il successo.
+No output from the command → it worked. Absence of output means success.
 
 ---
 
-### Opzione B — Linux / macOS / GitHub Codespaces
+### Option B — Linux / macOS / GitHub Codespaces
 
-`Connect-SPOService -Interactive` non funziona su Linux. Usa l'autenticazione via **certificato**.
+`Connect-SPOService -Interactive` does not work on Linux. Use **certificate-based** authentication instead.
 
-#### B1. Genera un certificato self-signed e caricalo su Azure
+#### B1. Generate a self-signed certificate and upload it to Azure
 
 ```bash
-# Genera chiave privata e certificato (1 sola volta)
+# Generate private key and certificate (once)
 openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem \
   -days 730 -nodes -subj "/CN=mcp-loop"
 
-# Crea il .pfx (con password) per PowerShell
+# Create .pfx (with password) for PowerShell
 openssl pkcs12 -export \
   -inkey key.pem -in cert.pem \
   -out cert.pfx -passout pass:temp123
 
-# Mostra il fingerprint SHA1 per confrontarlo su Azure
+# Show SHA1 fingerprint to verify against Azure
 openssl x509 -in cert.pem -fingerprint -sha1 -noout
 ```
 
-Su **Azure Portal** → App Registration → **Certificates & secrets** → **Certificates** → **Upload certificate**:
-- Carica `cert.pem`
-- Verifica che il thumbprint mostrato su Azure corrisponda all'output del comando `openssl x509 … -fingerprint`
+On **Azure Portal** → App Registration → **Certificates & secrets** → **Certificates** → **Upload certificate**:
+- Upload `cert.pem`
+- Verify the thumbprint shown on Azure matches the `openssl x509 … -fingerprint` output
 
-#### B2. Installa PowerShell e il modulo SPO
+#### B2. Install PowerShell and the SPO module
 
 ```bash
-# Installa pwsh (se non presente)
-# Su Debian/Ubuntu:
+# Install pwsh (if not present)
+# On Debian/Ubuntu:
 sudo apt-get install -y powershell
 
-# In GitHub Codespaces è già disponibile, avvia la shell:
+# In GitHub Codespaces it is already available, just start the shell:
 pwsh
 ```
 
@@ -187,27 +187,27 @@ Install-Module Microsoft.Online.SharePoint.PowerShell -Force
 Import-Module Microsoft.Online.SharePoint.PowerShell -Force
 ```
 
-#### B3. Risolvi la dipendenza MSAL (solo Linux)
+#### B3. Fix the MSAL dependency (Linux only)
 
-Il modulo SPO su Linux necessita di una DLL che non viene inclusa automaticamente:
+The SPO module on Linux requires a DLL that is not included automatically:
 
 ```bash
-# Dalla bash (non da pwsh), individua dove è installato il modulo:
+# From bash (not pwsh), find where the module is installed:
 SPOMOD=$(pwsh -c "Split-Path (Get-Module -ListAvailable Microsoft.Online.SharePoint.PowerShell | Select-Object -First 1).Path")
-echo "Modulo in: $SPOMOD"
+echo "Module path: $SPOMOD"
 
-# Crea un progetto dotnet temporaneo per scaricare la DLL
+# Create a temporary dotnet project to download the DLL
 mkdir -p /tmp/getmsal && cd /tmp/getmsal
 dotnet new console -n getmsal --force
 cd getmsal
 dotnet add package Microsoft.Identity.Client --version 4.74.1
 dotnet build -o out
 
-# Copia la DLL nella directory del modulo SPO
+# Copy the DLL into the SPO module directory
 cp out/Microsoft.Identity.Client.dll "$SPOMOD/"
 ```
 
-#### B4. Connetti e registra
+#### B4. Connect and register
 
 ```powershell
 Import-Module Microsoft.Online.SharePoint.PowerShell -Force
@@ -225,50 +225,50 @@ Set-SPOApplicationPermission `
   -PermissionAppOnly   "readcontent"
 ```
 
-> ℹ️ `Connect-SPOService` richiede `Sites.FullControl.All` (Application) sull'app (aggiunto al §4). Dopo aver completato questo passaggio, puoi **rimuovere** quel permesso da Azure se vuoi ridurre la superficie di attacco.
+> ℹ️ `Connect-SPOService` requires `Sites.FullControl.All` (Application) on the app (added in §4). Once this step is complete, you can **remove** that permission from Azure to reduce attack surface.
 
 ---
 
-## 6. Configurare l'MCP nel gateway
+## 6. Configure the MCP in the gateway
 
-### Comando di avvio (url_command_hidden)
+### Startup command (url_command_hidden)
 
 ```
 npx -y mcp-ms-loop
 ```
 
-L'opzione `-y` fa sì che npx scarichi sempre l'ultima versione pubblicata senza chiedere conferma.
+The `-y` flag ensures npx always downloads the latest published version without prompting.
 
-### Parametri personalizzati (JSON da inserire nella sezione "Parametri" del gateway)
+### Custom parameters (JSON to enter in the gateway "Parameters" section)
 
 ```json
 {
   "TENANT_ID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   "CLIENT_ID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "CLIENT_SECRET": "il-valore-del-secret-NON-l-id"
+  "CLIENT_SECRET": "the-secret-value-NOT-the-id"
 }
 ```
 
-> ⚠️ `CLIENT_SECRET` è il **Value** del secret (la stringa lunga come `abc123~XYZ...`), non l'ID/UUID che compare nell'elenco secrets su Azure.
+> ⚠️ `CLIENT_SECRET` is the **Value** of the secret (the long string like `abc123~XYZ...`), not the UUID/ID shown in the secrets list on Azure.
 
-Questi valori vengono iniettati come variabili d'ambiente nel processo Node.js. Non compaiono mai nei messaggi scambiati con l'LLM.
+These values are injected as environment variables into the Node.js process. They never appear in messages exchanged with the LLM.
 
 ---
 
-## 7. Tool disponibili
+## 7. Available Tools
 
 ### `getLoopByShareUrl`
 
-Recupera il contenuto completo di un file Loop a partire dal link di condivisione.
+Retrieves the full content of a Loop file starting from its sharing URL.
 
-**Parametri:**
+**Parameters:**
 
-| Parametro | Tipo | Obbligatorio | Descrizione |
+| Parameter | Type | Required | Description |
 |---|---|---|---|
-| `shareUrl` | string | Sì | Link completo del file Loop (quello che apri nel browser) |
-| `includeText` | boolean | No (default `true`) | Se `true`, restituisce anche il testo plain (HTML strippato) |
+| `shareUrl` | string | Yes | Full Loop file URL (the link you open in the browser) |
+| `includeText` | boolean | No (default `true`) | If `true`, also returns a plain-text version (HTML stripped) |
 
-**Risposta:**
+**Response:**
 
 ```json
 {
@@ -290,25 +290,25 @@ Recupera il contenuto completo di un file Loop a partire dal link di condivision
 
 ### `getLoopByItemId`
 
-Variante diretta: usa `driveId` e `itemId` se già noti (più veloce, salta la risoluzione del link).
+Direct variant: uses `driveId` and `itemId` if already known (faster, skips share URL resolution).
 
-**Parametri:**
+**Parameters:**
 
-| Parametro | Tipo | Obbligatorio | Descrizione |
+| Parameter | Type | Required | Description |
 |---|---|---|---|
-| `driveId` | string | Sì | ID del drive contenente il file |
-| `itemId` | string | Sì | ID del file |
-| `includeText` | boolean | No (default `true`) | Include versione testuale |
+| `driveId` | string | Yes | ID of the drive containing the file |
+| `itemId` | string | Yes | ID of the file |
+| `includeText` | boolean | No (default `true`) | Include plain-text version |
 
 ---
 
 ### `listLoopContainers`
 
-Scopre tutti i workspace Microsoft Loop accessibili all'app. Usa la Microsoft 365 Search API per trovare tutti i file `.loop` e raggrupparli per drive/workspace.
+Discovers all Microsoft Loop workspaces (drives) accessible to the app. Uses the Microsoft 365 Search API to find all `.loop` files and group them by drive/workspace.
 
-**Nessun parametro richiesto.**
+**No parameters required.**
 
-**Risposta:**
+**Response:**
 
 ```json
 [
@@ -331,16 +331,16 @@ Scopre tutti i workspace Microsoft Loop accessibili all'app. Usa la Microsoft 36
 
 ### `listLoopFilesInDrive`
 
-Elenca tutti i file `.loop` e `.fluid` dentro un drive. La scansione è **ricorsiva** (i file Loop nell'app Loop sono salvati dentro la sottocartella `LoopAppData/`).
+Lists all `.loop` and `.fluid` files inside a drive. The scan is **recursive** (Loop files in the Loop app are stored inside the `LoopAppData/` subfolder).
 
-**Parametri:**
+**Parameters:**
 
-| Parametro | Tipo | Obbligatorio | Descrizione |
+| Parameter | Type | Required | Description |
 |---|---|---|---|
-| `driveId` | string | Sì | ID del drive da scansionare (ottenuto da `listLoopContainers`) |
-| `path` | string | No (default `root`) | Percorso di partenza dentro il drive |
+| `driveId` | string | Yes | Drive ID to scan (obtained from `listLoopContainers`) |
+| `path` | string | No (default `root`) | Starting path inside the drive |
 
-**Risposta:**
+**Response:**
 
 ```json
 [
@@ -358,57 +358,57 @@ Elenca tutti i file `.loop` e `.fluid` dentro un drive. La scansione è **ricors
 
 ---
 
-## 8. Permessi minimi necessari
+## 8. Minimum Required Permissions
 
-Una volta completata la registrazione SPE (§5), la configurazione **finale** dell'app deve avere solo questi permessi:
+Once the SPE registration (§5) is complete, the **final** app configuration only needs these permissions:
 
-| API | Tipo | Permesso | Motivo |
+| API | Type | Permission | Reason |
 |---|---|---|---|
-| Microsoft Graph | Application | `Files.Read.All` | Leggere i file Loop |
-| Microsoft Graph | Application | `FileStorageContainer.Selected` | Accedere ai container SPE (workspace Loop) |
+| Microsoft Graph | Application | `Files.Read.All` | Read Loop files |
+| Microsoft Graph | Application | `FileStorageContainer.Selected` | Access SPE containers (Loop workspaces) |
 
-Tutto il resto (delegated, `Sites.Read.All`, `User.Read`, `offline_access`, `Sites.FullControl.All`) può essere rimosso.
+Everything else (delegated permissions, `Sites.Read.All`, `User.Read`, `offline_access`, `Sites.FullControl.All`) can be removed.
 
 ---
 
 ## 9. Troubleshooting
 
-### `403 accessDenied` su file nell'app Loop
+### `403 accessDenied` on Loop app files
 
-Il passaggio §5 (`Set-SPOApplicationPermission`) non è stato eseguito o non ha avuto effetto. Verificare di aver usato il `CLIENT_ID` corretto e di essersi connessi come Global Admin. La propagazione può richiedere qualche minuto.
+The §5 step (`Set-SPOApplicationPermission`) was not executed or did not take effect. Verify that the correct `CLIENT_ID` was used and that you were connected as Global Admin. Propagation may take a few minutes.
 
-### `400 failed to parse filter parameter` su `listLoopContainers`
+### `400 failed to parse filter parameter` on `listLoopContainers`
 
-Versione vecchia del pacchetto (≤ 1.0.3). Aggiorna all'ultima versione: il tool ora usa la Search API invece dell'API SPE container, che non è accessibile con i permessi minimi.
+Old package version (≤ 1.0.3). Update to the latest version: the tool now uses the Search API instead of the SPE container API, which is not accessible with minimum permissions.
 
 ### `Connect-SPOService: Object reference not set to an instance of an object`
 
-Stai usando `Connect-SPOService -Interactive` su Linux. Non funziona. Usa l'autenticazione via certificato (§5 Opzione B).
+You are using `Connect-SPOService -Interactive` on Linux. It does not work. Use certificate-based authentication (§5 Option B).
 
 ### `Could not load file or assembly 'Microsoft.Identity.Client'`
 
-La DLL MSAL manca nell'ambiente Linux. Segui il passaggio B3 della §5.
+The MSAL DLL is missing in the Linux environment. Follow step B3 in §5.
 
-### `Connect-SPOService: (401) Unauthorized` (con certificato)
+### `Connect-SPOService: (401) Unauthorized` (with certificate)
 
-L'app non ha il permesso `SharePoint > Sites.FullControl.All` (Application) con admin consent. Aggiungilo temporaneamente, esegui `Set-SPOApplicationPermission`, poi rimuovilo.
+The app is missing `SharePoint > Sites.FullControl.All` (Application) with admin consent. Add it temporarily, run `Set-SPOApplicationPermission`, then remove it.
 
-### `listLoopContainers` restituisce array vuoto `[]`
+### `listLoopContainers` returns empty array `[]`
 
-La Search API non ha trovato file Loop accessibili. Cause possibili:
-1. Il passaggio §5 non è stato fatto → file SPE non accessibili
-2. Non ci sono file `.loop` nel tenant
-3. Il tenant usa una region diversa da EMEA/NAM/APAC — contatta supporto Microsoft
+The Search API found no accessible Loop files. Possible causes:
+1. Step §5 was not completed → SPE files not accessible
+2. There are no `.loop` files in the tenant
+3. The tenant uses a region other than EMEA/NAM/APAC — contact Microsoft support
 
-### Il `CLIENT_SECRET` è scaduto
+### `CLIENT_SECRET` has expired
 
-Azure mostra la data di scadenza nella sezione **Certificates & secrets**. Se scaduto, genera un nuovo secret, aggiorna il JSON dei parametri nel gateway.
+Azure shows the expiration date in the **Certificates & secrets** section. If expired, generate a new secret and update the JSON parameters in the gateway.
 
 ---
 
-## Riferimenti
+## References
 
 - [Microsoft Graph — Drive Items](https://learn.microsoft.com/en-us/graph/api/driveitem-get)
-- [SharePoint Embedded — Guida tecnica Loop export](https://wals.pro/blogs/news/microsoft-loop-to-html-export-technical-guide)
+- [SharePoint Embedded — Loop HTML export technical guide](https://wals.pro/blogs/news/microsoft-loop-to-html-export-technical-guide)
 - [Set-SPOApplicationPermission (Microsoft Docs)](https://learn.microsoft.com/en-us/powershell/module/sharepoint-online/set-spoapplicationpermission)
 - [Microsoft 365 Search API — App-only](https://learn.microsoft.com/en-us/graph/search-concept-searchall)
