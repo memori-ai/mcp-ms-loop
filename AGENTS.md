@@ -91,7 +91,8 @@ npm pack --dry-run
 Tests must not require a real tenant, credential, or network request.
 Publishing with `npm publish` is supported on Node >= 24: `prepack` invokes
 `npm run build`, so the publish step does not require a globally installed Bun
-binary.
+binary. Keep `.npmrc` with `legacy-peer-deps=true`: npm 10 otherwise crashes in
+Arborist while resolving Vitest's optional peer graph.
 
 ## Gateway checklist
 

@@ -516,7 +516,8 @@ npm publish --access public
 
 `npm publish` builds the CLI automatically in `prepack` and does not require a
 globally installed Bun binary. Bun remains the reproducible development and CI
-toolchain.
+toolchain. The repository `.npmrc` enables `legacy-peer-deps` to avoid a known
+npm 10 Arborist crash while resolving Vitest's optional peer graph.
 
 ---
 

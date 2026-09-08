@@ -10,7 +10,11 @@ if (result.status !== 0) {
   throw new Error(result.stderr || 'npm pack dry-run failed')
 }
 
-const [manifest] = JSON.parse(result.stdout)
+const jsonStart = result.stdout.search(/^\[/m)
+if (jsonStart < 0) {
+  throw new Error(`npm pack returned no JSON manifest:\n${result.stdout}`)
+}
+const [manifest] = JSON.parse(result.stdout.slice(jsonStart))
 const paths = manifest.files.map(file => file.path)
 const allowed = path =>
   path.startsWith('build/') ||
