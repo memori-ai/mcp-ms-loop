@@ -1,0 +1,16 @@
+commit-msg:
+  jobs:
+    - name: lint commit message
+      run: bunx commitlint --edit $1
+
+pre-commit:
+  commands:
+    lint:
+      glob: '*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}'
+      run: bun run lint:fix
+      stage_fixed: true
+
+    format:
+      glob: '*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}'
+      run: bun run format
+      stage_fixed: true

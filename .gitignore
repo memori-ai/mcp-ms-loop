@@ -54,6 +54,8 @@ web_modules/
 .yarn-integrity
 
 # dotenv environment variable files
+.env*
+!.env.example
 .env
 .env.development.local
 .env.test.local
@@ -118,12 +120,29 @@ dist
 *.temp
 
 # Build output
+build/
 esm/
 storybook-static/
+package-lock.json
 
 # IDE files
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.cursor/*
+!.cursor/rules/
+.cursor/rules/*
+!.cursor/rules/aisuru-mcp.mdc
 .idea/
+
+# Credentials and certificates
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+*.cer
+*.kdbx
 
 # OS generated files
 Thumbs.db

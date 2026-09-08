@@ -1,23 +1,91 @@
 {
-  "name": "mcp-ms-loop",
-  "version": "1.0.1",
-  "description": "MCP server for Microsoft Loop files: retrieve Loop content as HTML via Microsoft Graph API.",
-  "type": "module",
-  "main": "src/index.js",
+  "name": "@memori.ai/mcp-ms-loop",
+  "version": "1.0.0",
+  "description": "Read Microsoft Loop files and workspaces through Microsoft Graph with bounded, token-efficient MCP responses.",
+  "keywords": [
+    "aisuru",
+    "mcp",
+    "mcp-server",
+    "microsoft-graph",
+    "microsoft-loop"
+  ],
+  "homepage": "https://github.com/memori-ai/memori-mcp-ms-loop#readme",
+  "bugs": {
+    "url": "https://github.com/memori-ai/memori-mcp-ms-loop/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/memori-ai/memori-mcp-ms-loop.git"
+  },
   "bin": {
-    "mcp-ms-loop": "./src/index.js"
+    "mcp-ms-loop": "build/cli.js"
   },
   "files": [
-    "src/"
+    "build",
+    "README.md",
+    "AGENTS.md",
+    "docs",
+    "LICENSE"
   ],
+  "type": "module",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
-    "start": "node src/index.js"
+    "build": "tsc && chmod 755 build/cli.js",
+    "check": "bun run lint:typeaware && bun run typecheck && bun run test && bun run format:check && bun run build && bun run smoke:node && bun run pack:check",
+    "dev": "bun run build && TENANT_ID=development CLIENT_ID=development CLIENT_SECRET=development bun run build/cli.js",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint --type-check",
+    "lint:fix": "oxlint --type-check --fix",
+    "lint:typeaware": "oxlint --type-aware --type-check",
+    "pack:check": "node scripts/check-package.mjs",
+    "prepack": "npm run build",
+    "prepare": "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && lefthook install || true",
+    "release": "bunx release-it",
+    "smoke:node": "node scripts/smoke-node.mjs",
+    "start": "node build/cli.js",
+    "start:bun": "bun run build/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.6.0",
-    "axios": "1.13.4"
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@t3-oss/env-core": "^0.13.11",
+    "axios": "^1.13.4",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@release-it/conventional-changelog": "^12.0.0",
+    "@types/bun": "^1.3.14",
+    "@types/node": "^24.13.3",
+    "conventional-commits-filter": "^6.0.1",
+    "conventional-commits-parser": "^7.1.2",
+    "lefthook": "^2.1.10",
+    "oxfmt": "^0.62.0",
+    "oxlint": "^1.77.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "release-it": "^21.0.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "engines": {
-    "node": ">=18"
-  }
+    "bun": ">=1.4.0",
+    "node": ">=24"
+  },
+  "packageManager": "bun@1.4.1"
 }

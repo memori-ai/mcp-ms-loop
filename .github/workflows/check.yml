@@ -1,0 +1,40 @@
+name: Check
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build (Bun) + Node smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.1'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install (Bun)
+        run: bun install --frozen-lockfile
+
+      - run: bun run lint:typeaware
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run format:check
+      - run: bun run build
+
+      - name: Syntax-check CLI on Node
+        run: node --check build/cli.js
+
+      - name: Exercise MCP transport on Node
+        run: bun run smoke:node
+
+      - name: Verify npm tarball allowlist
+        run: bun run pack:check
+
+      - name: Audit production dependencies
+        run: bun audit --production

@@ -1,0 +1,20 @@
+---
+description: AIsuru MCP template for Microsoft Loop
+globs: "*.ts,package.json,README.md,AGENTS.md,docs/**"
+alwaysApply: true
+---
+
+# AIsuru MCP servers
+
+- Development uses Bun >= 1.4; Gateway uses Node >= 24 with npx and stdio.
+- Keep source Node-compatible; do not use Bun-only runtime APIs.
+- Preserve the four documented Microsoft Loop tool names.
+- All credentials belong only in environment variables.
+- All current tools are read-only and open-world Microsoft Graph operations.
+- Return compact JSON and structured `isError` results.
+- Content uses one bounded budget; text is the default and HTML is opt-in.
+- Lists must remain paginated and bounded.
+- Never log Axios objects, bearer tokens, client secrets, tenant content, ids,
+  URLs, or raw Graph error payloads.
+- Update README and `docs/MCP_CLIENTS.md` when env or commands change.
+- Run `bun run check` before handing work off.

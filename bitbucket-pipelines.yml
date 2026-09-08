@@ -1,0 +1,32 @@
+image: node:24
+
+definitions:
+  caches:
+    bun: /root/.bun/install/cache
+  steps:
+    - step: &check
+        name: Lint, typecheck, test, build (Bun) + Node smoke
+        caches:
+          - bun
+        script:
+          - apt-get update -qq && apt-get install -y -qq unzip
+          - curl -fsSL https://bun.com/install | bash
+          - export BUN_INSTALL="$HOME/.bun"
+          - export PATH="$BUN_INSTALL/bin:$PATH"
+          - bun install --frozen-lockfile
+          - bun run lint:typeaware
+          - bun run typecheck
+          - bun run test
+          - bun run format:check
+          - bun run build
+          - node --check build/cli.js
+          - bun run smoke:node
+          - bun run pack:check
+          - bun audit --production
+
+pipelines:
+  default:
+    - step: *check
+  pull-requests:
+    '**':
+      - step: *check
